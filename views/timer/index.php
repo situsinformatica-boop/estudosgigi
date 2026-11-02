@@ -15,14 +15,15 @@ if (!$cfg) {
 ?>
 
 <div class="page-header">
-    <div><div class="page-title">⏱ Timer / Pomodoro</div>
-    <div class="page-subtitle">Foque. Descanse. Repita.</div></div>
+    <div><div class="page-title">Estudar</div>
+    <div class="page-subtitle">Escolha sua matéria, ajuste o tempo e comece.</div></div>
 </div>
 
+<?php if(empty($subjects)): ?><div class="card empty-day"><strong>Antes de começar, adicione uma matéria.</strong><a class="btn btn-primary" href="<?= BASE_URL ?>/index.php?page=subjects">Adicionar matéria</a></div><?php endif; ?>
 <!-- Abas de modo -->
 <div style="display:flex;gap:4px;margin-bottom:20px;background:var(--bg3);padding:4px;border-radius:12px;width:fit-content">
     <button id="tab-pomodoro" onclick="setMode('pomodoro')"
-        style="padding:8px 20px;border-radius:9px;border:none;cursor:pointer;font-family:var(--font);font-size:14px;font-weight:600;background:var(--primary);color:#fff;transition:all .2s">
+        style="padding:8px 20px;border-radius:9px;border:none;cursor:pointer;font-family:var(--font);font-size:14px;font-weight:600;background:var(--primary);color:var(--on-primary);transition:all .2s">
         🍅 Pomodoro
     </button>
     <button id="tab-smart" onclick="setMode('smart')"
@@ -35,7 +36,7 @@ if (!$cfg) {
     </button>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start">
+<div class="study-layout">
 
 <!-- ── Timer principal ─────────────────────────────────────── -->
 <div class="card" style="text-align:center;padding:32px 28px">
@@ -43,22 +44,27 @@ if (!$cfg) {
     <!-- Seleção de matéria / tópico -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px;text-align:left">
         <div class="form-group" style="margin:0">
-            <label class="form-label">Matéria *</label>
+            <label class="form-label" for="select-subject">Matéria *</label>
             <select class="form-select" id="select-subject" onchange="loadTopics(this.value)">
                 <option value="">— Selecione —</option>
                 <?php foreach ($subjects as $s): ?>
-                <option value="<?= $s['id'] ?>"><?= e($s['name']) ?></option>
+                <option value="<?= $s['id'] ?>" <?= (int)($_GET['subject_id'] ?? 0)===(int)$s['id']?'selected':'' ?>><?= e($s['name']) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
         <div class="form-group" style="margin:0">
-            <label class="form-label">Tópico (opcional)</label>
+            <label class="form-label" for="select-topic">Tópico (opcional)</label>
             <select class="form-select" id="select-topic">
                 <option value="">— Nenhum —</option>
             </select>
         </div>
     </div>
 
+    <div class="duration-presets" aria-label="Duração do estudo">
+        <span>Tempo para estudar</span>
+        <?php foreach([25,45,60] as $minutes): ?><button type="button" class="btn btn-ghost" onclick="chooseDuration(<?= $minutes ?>)"><?= $minutes ?> min</button><?php endforeach; ?>
+    </div>
+    <details class="timer-customize" id="timer-customize"><summary>Personalizar sessão e pausas</summary>
     <!-- Modo Pomodoro: config visível -->
     <div id="mode-pomodoro-config" style="margin-bottom:20px">
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:left">
@@ -113,6 +119,7 @@ if (!$cfg) {
         </div>
     </div>
 
+    </details>
     <!-- Display do timer -->
     <div class="timer-display" id="timer-display">25:00</div>
     <div class="timer-label" id="timer-label">Pronto</div>
@@ -140,7 +147,7 @@ if (!$cfg) {
             ⏸ Pausar
         </button>
         <button class="btn btn-ghost" id="timer-reset" onclick="TIMER && TIMER.reset()">
-            ↺ Reset
+            ↺ Reiniciar
         </button>
     </div>
 
@@ -176,8 +183,8 @@ if (!$cfg) {
     </div>
 
     <!-- Opções -->
-    <div class="card">
-        <div class="card-title">Opções</div>
+    <details class="card timer-options">
+        <summary>Preferências de estudo</summary>
         <div style="display:flex;flex-direction:column;gap:10px;font-size:14px">
             <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer">
                 <span style="color:var(--muted)">🔊 Som de alerta</span>
@@ -193,16 +200,17 @@ if (!$cfg) {
             </label>
         </div>
         <button class="btn btn-ghost btn-sm" style="margin-top:14px;width:100%;justify-content:center" onclick="saveConfig()">
-            💾 Salvar preferências
+            Salvar preferências
         </button>
-    </div>
+    </details>
 
+    <a class="btn btn-ghost" href="<?= BASE_URL ?>/index.php?page=focus">Abrir modo foco</a>
     <!-- Como funciona (por modo) -->
     <div class="card" style="font-size:13px;color:var(--muted);line-height:1.8" id="how-it-works">
         <div class="card-title">Como funciona</div>
         <div id="hint-pomodoro">
             ① Selecione matéria e tópico<br>
-            ② Configure trabalho/pausa<br>
+            ② Escolha a duração do estudo<br>
             ③ Clique <strong style="color:var(--text)">Iniciar</strong><br>
             ④ Estude no tempo configurado<br>
             ⑤ Descanse na pausa automática<br>
@@ -230,19 +238,22 @@ let currentMode = 'pomodoro';
 
 document.addEventListener('DOMContentLoaded', () => {
     initStars('quality-stars', 'quality-input');
+    loadTopics(document.getElementById('select-subject').value);
     recalcSmart();
     buildTimer();
 });
 
 // ── Troca de modo ────────────────────────────────────────────
 function setMode(mode) {
+    if (TIMER?.sessionId) { toast('Encerre a sessão atual antes de mudar o modo.', 'error'); return; }
+    document.getElementById('timer-customize').open = mode !== 'pomodoro';
     currentMode = mode;
     ['pomodoro','smart','simple'].forEach(m => {
         document.getElementById('mode-'+m+'-config').style.display = m===mode?'block':'none';
         document.getElementById('hint-'+m).style.display = m===mode?'block':'none';
         const tab = document.getElementById('tab-'+m);
         tab.style.background = m===mode?'var(--primary)':'transparent';
-        tab.style.color      = m===mode?'#fff':'var(--muted)';
+        tab.style.color      = m===mode?'var(--on-primary)':'var(--muted)';
     });
 
     // Dots: só aparecem no pomodoro
@@ -251,6 +262,17 @@ function setMode(mode) {
 
     if (TIMER) TIMER.reset();
     buildTimer();
+}
+
+function chooseDuration(minutes) {
+    if (TIMER?.sessionId) { toast('Encerre a sessão atual antes de alterar a duração.', 'error'); return; }
+    const id = currentMode === 'pomodoro' ? 'pm-work' : currentMode === 'smart' ? 'sm-total' : 'si-minutes';
+    document.getElementById(id).value = minutes;
+    recalcSmart();
+    buildTimer();
+}
+function recalcPomodoro() {
+    if (!TIMER?.sessionId) buildTimer();
 }
 
 // ── Recalcula modo inteligente ───────────────────────────────
@@ -342,8 +364,15 @@ function buildTimer() {
 
 // ── Inicia timer (botão) ─────────────────────────────────────
 async function timerStart() {
-    if (!TIMER || TIMER.state === 'idle') buildTimer();
-    await TIMER.start();
+    const button = document.getElementById('timer-start');
+    if (button.disabled) return;
+    button.disabled = true;
+    try {
+        if (!TIMER || TIMER.state === 'idle') buildTimer();
+        await TIMER.start();
+    } finally {
+        button.disabled = false;
+    }
     // Atualiza hora de início
     document.getElementById('active-start-time').textContent = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
 }
@@ -359,8 +388,13 @@ async function saveConfig() {
         auto_start_break:   document.getElementById('opt-autobreak').checked ? 1 : 0,
         auto_start_work:    document.getElementById('opt-autowork').checked  ? 1 : 0,
     };
-    await api('pomodoro_config', data, 'POST');
-    toast('Preferências salvas!', 'success');
+    try {
+        const result = await api('pomodoro_config', data, 'POST');
+        if (result.error) throw new Error(result.error);
+        toast('Preferências salvas!', 'success');
+    } catch (error) {
+        toast('Não foi possível salvar. Verifique sua conexão e tente novamente.', 'error');
+    }
 }
 
 // ── Finaliza sessão ──────────────────────────────────────────

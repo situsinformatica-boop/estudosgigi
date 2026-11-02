@@ -1,0 +1,61 @@
+name: Deploy estudosgigi (FTPS)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: estudosgigi-production-ftps
+  cancel-in-progress: false
+
+env:
+  # Change only after validating the destination, plan and web document root.
+  DRY_RUN: 'true'
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Prepare allowed files and list exclusions
+        run: |
+          python3 -B .github/scripts/test_deploy.py
+          python3 -B .github/scripts/prepare_deploy.py
+
+      - name: Validate FTPS destination and protect remote files
+        id: guard
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+        run: python3 .github/scripts/guard_deploy.py
+
+      - name: FTPS plan or upload (no remote removals)
+        uses: SamKirkland/FTP-Deploy-Action@3a9c65ae0fc12ac924ccef8afc26941cc43aad0b # v4.4.0
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          security: strict
+          local-dir: .deploy/
+          server-dir: ${{ secrets.FTP_SERVER_DIR }}
+          state-name: .estudosgigi-deploy-state.json
+          dry-run: ${{ env.DRY_RUN }}
+          log-level: standard
+          timeout: 60000
+          # The guard excludes EVERY old tracked path absent from the package.
+          # Without this guard the Action can delete files even without clean-slate.
+          exclude: ${{ steps.guard.outputs.exclude }}

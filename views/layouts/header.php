@@ -29,9 +29,10 @@ $initial     = mb_strtoupper(mb_substr($user['name'] ?? 'U', 0, 1));
 </script>
 </head>
 <body>
+<a class="skip-link" href="#main-content">Pular para o conteúdo</a>
 
 <!-- ── Botão hamburguer (mobile) ──────────────────────── -->
-<button class="hamburger" id="hamburger" aria-label="Menu" onclick="toggleSidebar()">
+<button class="hamburger" id="hamburger" aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false" onclick="toggleSidebar()">
     <span></span><span></span><span></span>
 </button>
 
@@ -54,30 +55,21 @@ $initial     = mb_strtoupper(mb_substr($user['name'] ?? 'U', 0, 1));
         </div>
     </div>
 
-    <nav class="sidebar-nav">
+    <nav class="sidebar-nav" aria-label="Navegação principal">
         <?php
-        $nav = [
-            ['dashboard',    '⊞', 'Dashboard'],
-            ['timer',        '⏱', 'Timer / Pomodoro'],
-            ['subjects',     '📖', 'Matérias'],
-            ['review',       '🎯', 'Simulados & Quiz'],
-            ['reports',      '📊', 'Relatórios'],
-            ['agenda',       '📅', 'Agenda'],
-            ['study_hours',  '⏱', 'Horas de Estudo'],
-            ['flashcards',   '🃏', 'Flashcards'],
-            ['notebook',     '📓', 'Caderno Digital'],
-            ['focus',        '🔆', 'Modo Foco'],
+        $groups = [
+            'Seu dia' => [['dashboard','Hoje'],['timer','Estudar'],['agenda','Agenda']],
+            'Materiais' => [['subjects','Matérias'],['notebook','Caderno digital'],['flashcards','Flashcards']],
+            'Praticar' => [['review','Simulados e quiz'],['focus','Modo foco']],
+            'Evolução' => [['reports','Relatórios'],['study_hours','Horas de estudo'],['goals','Metas'],['gamification','Conquistas']],
         ];
-        foreach ($nav as [$p, $icon, $label]):
-        ?>
-        <a href="<?= BASE_URL ?>/index.php?page=<?= $p ?>"
-           class="nav-item <?= $page===$p?'active':'' ?>"
-           onclick="closeSidebar()">
-            <span class="nav-icon"><?= $icon ?></span>
-            <?= $label ?>
-
+        foreach ($groups as $group => $links): ?>
+        <div class="nav-group-label"><?= $group ?></div>
+        <?php foreach ($links as [$p, $label]): ?>
+        <a href="<?= BASE_URL ?>/index.php?page=<?= $p ?>" class="nav-item <?= $page===$p?'active':'' ?>" <?= $page===$p?'aria-current="page"':'' ?> onclick="closeSidebar()">
+            <span class="nav-marker" aria-hidden="true"></span><?= $label ?>
         </a>
-        <?php endforeach; ?>
+        <?php endforeach; endforeach; ?>
 
         <div class="nav-sep"></div>
         <?php if (($user['role'] ?? '') === 'admin'): ?>
@@ -117,35 +109,15 @@ $initial     = mb_strtoupper(mb_substr($user['name'] ?? 'U', 0, 1));
 </aside>
 
 <!-- ── Bottom nav (mobile) ────────────────────────────── -->
-<nav class="bottom-nav">
-    <a href="<?= BASE_URL ?>/index.php?page=dashboard"
-       class="<?= $page==='dashboard'?'active':'' ?>">
-        <span class="bn-icon">⊞</span>Início
-    </a>
-    <a href="<?= BASE_URL ?>/index.php?page=timer"
-       class="<?= $page==='timer'?'active':'' ?>">
-        <span class="bn-icon">⏱</span>Timer
-    </a>
-    <a href="<?= BASE_URL ?>/index.php?page=agenda"
-       class="<?= $page==='agenda'?'active':'' ?>">
-        <span class="bn-icon">📅</span>Agenda
-    </a>
-    <a href="<?= BASE_URL ?>/index.php?page=notebook"
-       class="<?= $page==='notebook'?'active':'' ?>">
-        <span class="bn-icon">📓</span>Caderno
-    </a>
-    <a href="<?= BASE_URL ?>/index.php?page=review"
-       class="<?= $page==='review'?'active':'' ?>" style="position:relative">
-        <span class="bn-icon">🔄</span>Revisão
-
-    </a>
-    <a href="#" onclick="toggleSidebar();return false;">
-        <span class="bn-icon">☰</span>Menu
-    </a>
+<nav class="bottom-nav" aria-label="Navegação rápida">
+    <?php foreach ([['dashboard','Hoje'],['timer','Estudar'],['agenda','Agenda']] as [$p,$label]): ?>
+    <a href="<?= BASE_URL ?>/index.php?page=<?= $p ?>" class="<?= $page===$p?'active':'' ?>" <?= $page===$p?'aria-current="page"':'' ?>><?= $label ?></a>
+    <?php endforeach; ?>
+    <button type="button" aria-controls="sidebar" aria-expanded="false" onclick="toggleSidebar()">Mais</button>
 </nav>
 
 <!-- ── Main content ───────────────────────────────────── -->
-<main class="main-content">
+<main class="main-content" id="main-content" tabindex="-1">
 <?php if (isset($_GET['welcome'])): ?>
 <div style="background:rgba(99,102,241,.15);border:1px solid var(--primary);border-radius:10px;padding:13px 16px;margin-bottom:18px;font-size:14px;color:var(--primary-lt)">
     🎉 Bem-vindo ao <strong>Estudos GiGi</strong>, <strong><?= e($user['name']) ?></strong>!
@@ -160,6 +132,8 @@ function toggleSidebar(){
     const h=document.getElementById('hamburger');
     const open=s.classList.toggle('open');
     h.classList.toggle('open',open);
+    document.querySelectorAll('[aria-controls=sidebar]').forEach(b=>b.setAttribute('aria-expanded',String(open)));
+    if(open) s.querySelector('a')?.focus();
     o.classList.toggle('visible',open);
     document.body.style.overflow=open?'hidden':'';
 }
@@ -167,6 +141,8 @@ function closeSidebar(){
     const s=document.getElementById('sidebar');
     if(!s.classList.contains('open'))return;
     s.classList.remove('open');
+    document.querySelectorAll('[aria-controls=sidebar]').forEach(b=>b.setAttribute('aria-expanded','false'));
+    if(s.contains(document.activeElement)) document.getElementById('hamburger').focus();
     document.getElementById('hamburger').classList.remove('open');
     document.getElementById('sidebar-overlay').classList.remove('visible');
     document.body.style.overflow='';

@@ -16,16 +16,45 @@ $reviewsDue   = $review->countDue();
 
 // Agenda de hoje
 $today = date('Y-m-d');
-$stmtA = db()->prepare("SELECT * FROM agenda_items WHERE user_id=? AND study_date=? ORDER BY priority DESC, start_time ASC");
+$stmtA = db()->prepare("SELECT * FROM agenda_items WHERE user_id=? AND study_date=? AND title!='__notes__' ORDER BY priority DESC, start_time ASC");
 $stmtA->execute([uid(), $today]); $agendaToday = $stmtA->fetchAll();
 $pendingAgenda = array_filter($agendaToday, fn($i) => !$i['is_done']);
 ?>
 
+<?php
+$days = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
+$months = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+?>
 <div class="page-header">
-    <div><div class="page-title">Dashboard</div>
-    <div class="page-subtitle"><?= date('l, d \d\e F \d\e Y') ?></div></div>
-    <a href="<?= BASE_URL ?>/index.php?page=timer" class="btn btn-primary">▶ Iniciar Sessão</a>
+    <div><h1 class="page-title">Hoje</h1><p class="page-subtitle"><?= $days[(int)date('w')] ?>, <?= date('j') ?> de <?= $months[(int)date('n')-1] ?></p></div>
+    <a class="btn btn-ghost" href="<?= BASE_URL ?>/index.php?page=agenda">Organizar meu dia</a>
 </div>
+<section class="study-hero" aria-labelledby="hero-title">
+    <div>
+        <span class="eyebrow">Um passo de cada vez</span>
+        <h2 id="hero-title"><?= empty($subjects) ? 'Seu próximo passo começa aqui.' : 'Abra espaço para aprender.' ?></h2>
+        <p><?= empty($subjects) ? 'Adicione sua primeira matéria para organizar os conteúdos e começar a estudar.' : 'Escolha uma matéria, reserve alguns minutos e concentre-se no que importa agora.' ?></p>
+        <?php if(empty($subjects)): ?>
+        <a class="btn btn-primary" href="<?= BASE_URL ?>/index.php?page=subjects">Adicionar primeira matéria</a>
+        <?php else: ?>
+        <form action="<?= BASE_URL ?>/index.php" method="get" class="quick-study">
+            <input type="hidden" name="page" value="timer">
+            <label class="sr-only" for="quick-subject">Matéria para estudar</label>
+            <select class="form-select" id="quick-subject" name="subject_id">
+                <?php foreach($subjects as $s): ?><option value="<?= (int)$s['id'] ?>"><?= e($s['name']) ?></option><?php endforeach; ?>
+            </select>
+            <button class="btn btn-primary" type="submit">Começar a estudar →</button>
+        </form>
+        <?php endif; ?>
+    </div>
+    <div class="daily-progress">
+        <span class="eyebrow">Seu ritmo de hoje</span>
+        <strong><?= minutesToReadable($minutesToday) ?></strong>
+        <span>de <?= minutesToReadable($dailyGoal) ?> planejados</span>
+        <progress max="100" value="<?= $todayPct ?>" aria-label="Progresso da meta diária"><?= $todayPct ?>%</progress>
+        <span><?= $todayPct >= 100 ? 'Meta alcançada. Bom trabalho!' : 'Cada minuto conta.' ?></span>
+    </div>
+</section>
 
 <!-- Aviso da agenda do dia -->
 <?php if(count($pendingAgenda) > 0): ?>
@@ -43,6 +72,8 @@ $pendingAgenda = array_filter($agendaToday, fn($i) => !$i['is_done']);
     <?php endforeach; ?>
     <?php if(count($pendingAgenda)>3): ?><div style="font-size:12px;color:var(--muted);margin-top:6px">e mais <?= count($pendingAgenda)-3 ?> itens...</div><?php endif; ?>
 </div>
+<?php else: ?>
+<div class="card empty-day"><strong>Seu dia está livre para planejar.</strong><span>Organize o próximo conteúdo na agenda.</span><a class="btn btn-ghost" href="<?= BASE_URL ?>/index.php?page=agenda">Planejar estudo</a></div>
 <?php endif; ?>
 
 <div class="stats-grid">
@@ -60,7 +91,7 @@ $pendingAgenda = array_filter($agendaToday, fn($i) => !$i['is_done']);
     <div class="stat-card">
         <div class="stat-label">Revisões pendentes</div>
         <div class="stat-value <?= $reviewsDue>0?'stat-red':'stat-green' ?>"><?= $reviewsDue ?></div>
-        <div class="stat-sub"><a href="<?= BASE_URL ?>/index.php?page=review" style="color:var(--primary-lt)">Ver revisões →</a></div>
+        <div class="stat-sub"><a href="<?= BASE_URL ?>/index.php?page=subjects" style="color:var(--primary-lt)">Ver tópicos →</a></div>
     </div>
     <div class="stat-card">
         <div class="stat-label">Sessões (7 dias)</div>
@@ -69,29 +100,11 @@ $pendingAgenda = array_filter($agendaToday, fn($i) => !$i['is_done']);
     </div>
 </div>
 
-<!-- Acesso rápido aos novos módulos -->
-<div class="grid-3" style="margin-bottom:20px">
-    <a href="<?= BASE_URL ?>/index.php?page=agenda" style="text-decoration:none">
-        <div class="card" style="text-align:center;padding:20px;cursor:pointer;transition:border-color .15s;border-color:var(--border)" onmouseover="this.style.borderColor='#f472b6'" onmouseout="this.style.borderColor='var(--border)'">
-            <div style="font-size:32px;margin-bottom:8px">📅</div>
-            <div style="font-weight:700;font-size:15px">Agenda</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:4px"><?= count($pendingAgenda) ?> item(s) hoje</div>
-        </div>
-    </a>
-    <a href="<?= BASE_URL ?>/index.php?page=flashcards" style="text-decoration:none">
-        <div class="card" style="text-align:center;padding:20px;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
-            <div style="font-size:32px;margin-bottom:8px">🃏</div>
-            <div style="font-weight:700;font-size:15px">Flashcards</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:4px">Estude com fichas</div>
-        </div>
-    </a>
-    <a href="<?= BASE_URL ?>/index.php?page=notebook" style="text-decoration:none">
-        <div class="card" style="text-align:center;padding:20px;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor='var(--green)'" onmouseout="this.style.borderColor='var(--border)'">
-            <div style="font-size:32px;margin-bottom:8px">📓</div>
-            <div style="font-weight:700;font-size:15px">Caderno Digital</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:4px">Anote as videoaulas</div>
-        </div>
-    </a>
+<div class="section-heading"><h2>Continue aprendendo</h2><a href="<?= BASE_URL ?>/index.php?page=reports">Ver minha evolução →</a></div>
+<div class="grid-3 resource-grid">
+    <a class="card resource-card" href="<?= BASE_URL ?>/index.php?page=notebook"><span class="eyebrow">Organizar</span><h3>Caderno digital</h3><p>Reúna suas anotações e ideias.</p><span aria-hidden="true">→</span></a>
+    <a class="card resource-card" href="<?= BASE_URL ?>/index.php?page=flashcards"><span class="eyebrow">Memorizar</span><h3>Flashcards</h3><p>Relembre conceitos em pequenas sessões.</p><span aria-hidden="true">→</span></a>
+    <a class="card resource-card" href="<?= BASE_URL ?>/index.php?page=review"><span class="eyebrow">Praticar</span><h3>Simulados e quiz</h3><p>Teste o que aprendeu e identifique dúvidas.</p><span aria-hidden="true">→</span></a>
 </div>
 
 <div class="grid-2" style="margin-bottom:20px">
