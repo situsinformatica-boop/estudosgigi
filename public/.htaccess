@@ -1,0 +1,12 @@
+Options -Indexes
+
+# Serve arquivos estáticos diretamente, sem passar pelo index.php
+RewriteEngine On
+
+# Se o arquivo ou pasta existir fisicamente, serve direto
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Tudo o mais vai para o index.php
+RewriteRule ^ index.php [L]
